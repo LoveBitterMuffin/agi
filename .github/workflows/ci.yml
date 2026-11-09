@@ -37,7 +37,7 @@ jobs:
           fi
 
       - name: Run Node.js test suite
-        run: node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs
+        run: node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs tests/quad-loop-telemetry.test.mjs
 
       - name: Run Ponytail restraint hook audit
         run: node hooks/audit-restraint.mjs hooks
@@ -63,7 +63,7 @@ jobs:
           node-version: '20'
 
       - name: Run Node.js test suite
-        run: node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs
+        run: node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs tests/quad-loop-telemetry.test.mjs
 
       - name: Audit code standards
         shell: pwsh

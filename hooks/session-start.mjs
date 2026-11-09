@@ -36,7 +36,13 @@ function main() {
   }
 
   process.stdout.write(JSON.stringify({
-    additionalContext: "AGI active: Carpati L0/L1/L2 memory, Dynamic Gate 1.X, 24 SDLC agents, 51 skills loaded."
+    injectSteps: [
+      {
+        systemMessage: {
+          systemMessage: "AGI v1.0.1 active: Carpati L0/L1/L2 memory, Dual-Loop Gates 0-3, Ponytail 7-Rung Restraint, Harness² CI/CD, 24 SDLC agents, 66 skills loaded. Mandatory: print '### 🔄 Quad-Loop Execution Telemetry' before invoke_subagent and on stage completion."
+        }
+      }
+    ]
   }));
   return 0;
 }

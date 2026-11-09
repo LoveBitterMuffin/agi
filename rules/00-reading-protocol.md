@@ -33,3 +33,8 @@ description: Context hygiene, terminal output shielding, subagent firewalls, and
 - Navigation Hub: [MOC](file:///./memory/MOC.md)
 - Sprint State & Active Tasks: [ActiveSprintLog](file:///./memory/logs/ActiveSprintLog.md)
 - Release History: [CHANGELOG](file:///./memory/logs/CHANGELOG.md)
+
+## 6. Quad-Loop Execution Telemetry Gate
+- Before calling `invoke_subagent` or concluding a work stage (`Stop`), output `### 🔄 Quad-Loop Execution Telemetry` in chat.
+- Include all 4 markers (`[Loop 1`, `[Loop 2`, `[Loop 3`, `[Loop 4`) reflecting the active turn state.
+- Enforced deterministically by `hooks/quad-loop-guard.mjs` across `PreInvocation`, `PreToolUse`, and `Stop`.

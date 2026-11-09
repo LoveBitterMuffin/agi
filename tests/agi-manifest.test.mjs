@@ -56,7 +56,7 @@ test('plugin.json defines AGI branding, allowed keys, and valid SVG logo', () =>
   const manifest = readJson('plugin.json');
   assert.equal(manifest.name, 'agi');
   assert.equal(manifest.displayName, 'AGI');
-  assert.equal(manifest.version, '1.0.0');
+  assert.equal(manifest.version, '1.0.1');
   assert.equal(manifest.logo, 'assets/logo.svg');
   assert.ok(typeof manifest.description === 'string' && manifest.description.length > 0);
   assert.ok(Array.isArray(manifest.suggestedPrompts) && manifest.suggestedPrompts.length === 3);
@@ -87,7 +87,12 @@ test('hooks.json is valid JSON under "agi" and all referenced .mjs scripts exist
   }
 });
 
-test('repository export contains no Python bytecode artifacts and has clean incident log', () => {
+test('repository export contains no Python bytecode artifacts and has clean incident log', (t) => {
+  if (!fs.existsSync(path.join(ROOT, '.git'))) {
+    t.skip('export hygiene applies only to git repository checkouts');
+    return;
+  }
+
   const pyArtifacts = findPythonArtifacts(ROOT);
   assert.deepEqual(pyArtifacts, []);
 

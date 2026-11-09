@@ -3,9 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 export function getChainStatePath() {
-  if (process.env.ANTIGRAVITY_CHAIN_STATE_PATH) {
-    return process.env.ANTIGRAVITY_CHAIN_STATE_PATH;
-  }
+  if (process.env.ANTIGRAVITY_CHAIN_STATE_PATH) return process.env.ANTIGRAVITY_CHAIN_STATE_PATH;
   const base = process.env.USERPROFILE || process.env.HOME || '';
   return path.join(base, '.gemini', 'antigravity', 'scratch', 'lead_tool_chain.json');
 }
@@ -19,13 +17,9 @@ export function resolveMaxChainCalls() {
 
 export function readChainState(filePath = getChainStatePath()) {
   try {
-    if (!fs.existsSync(filePath)) {
-      return { consecutiveCalls: 0, unlimited: true, conversations: {} };
-    }
+    if (!fs.existsSync(filePath)) return { consecutiveCalls: 0, unlimited: true, conversations: {} };
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const conversations = parsed && typeof parsed.conversations === 'object' && parsed.conversations !== null
-      ? parsed.conversations
-      : {};
+    const conversations = parsed && typeof parsed.conversations === 'object' && parsed.conversations !== null ? parsed.conversations : {};
     return {
       consecutiveCalls: typeof parsed?.consecutiveCalls === 'number' ? parsed.consecutiveCalls : 0,
       unlimited: true,
@@ -41,10 +35,11 @@ export function writeChainState(state, filePath = getChainStatePath()) {
   try {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const maxCalls = resolveMaxChainCalls();
     const payload = {
       consecutiveCalls: state.consecutiveCalls ?? 0,
-      limit: Number.isFinite(resolveMaxChainCalls()) ? resolveMaxChainCalls() : null,
-      unlimited: !Number.isFinite(resolveMaxChainCalls()),
+      limit: Number.isFinite(maxCalls) ? maxCalls : null,
+      unlimited: !Number.isFinite(maxCalls),
       updatedAt: new Date().toISOString(),
       conversations: state.conversations ?? {}
     };
@@ -54,15 +49,35 @@ export function writeChainState(state, filePath = getChainStatePath()) {
   }
 }
 
-export function resetChainState({ conversationId = '', lastUserInput = '', filePath = getChainStatePath() } = {}) {
+function resolveTelemetry(entry = {}, userInput = '', forceReset = false) {
+  const prevInput = entry.telemetryUserInput || entry.lastUserInput || '';
+  const changed = Boolean(userInput && prevInput && prevInput !== userInput);
+  if (forceReset || changed) {
+    return { telemetryUserInput: userInput || '', stopTelemetryRetries: 0, subagentGateDenies: 0, fallbackRendered: false };
+  }
+  return {
+    telemetryUserInput: userInput || prevInput,
+    stopTelemetryRetries: Number.isFinite(entry.stopTelemetryRetries) ? entry.stopTelemetryRetries : 0,
+    subagentGateDenies: Number.isFinite(entry.subagentGateDenies) ? entry.subagentGateDenies : 0,
+    fallbackRendered: Boolean(entry.fallbackRendered)
+  };
+}
+
+function setConvEntry(state, convId, count, userInput, telem) {
+  const prev = state.conversations[convId] || {};
+  state.conversations[convId] = {
+    consecutiveCalls: count,
+    lastUserInput: userInput || prev.lastUserInput || '',
+    ...telem,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+export function resetChainState({ conversationId = '', lastUserInput = '', resetTurn = false, filePath = getChainStatePath() } = {}) {
   const state = readChainState(filePath);
-  const now = new Date().toISOString();
   if (conversationId) {
-    state.conversations[conversationId] = {
-      consecutiveCalls: 0,
-      lastUserInput,
-      updatedAt: now
-    };
+    const prev = state.conversations[conversationId] || {};
+    setConvEntry(state, conversationId, 0, lastUserInput, resolveTelemetry(prev, lastUserInput, resetTurn));
   } else {
     state.conversations = {};
   }
@@ -78,23 +93,46 @@ export function recordToolCall({ toolName = '', payload = {}, filePath = getChai
   const prev = state.conversations[convId] || { consecutiveCalls: 0, lastUserInput: userInput };
   const isNewRequest = Boolean(userInput && prev.lastUserInput && prev.lastUserInput !== userInput);
   const nextCount = (toolName === 'invoke_subagent' || isNewRequest) ? 0 : prev.consecutiveCalls + 1;
-
-  state.conversations[convId] = {
-    consecutiveCalls: nextCount,
-    lastUserInput: userInput || prev.lastUserInput || '',
-    updatedAt: new Date().toISOString()
-  };
+  setConvEntry(state, convId, nextCount, userInput, resolveTelemetry(prev, userInput, isNewRequest));
   state.consecutiveCalls = nextCount;
   writeChainState(state, filePath);
 
   const maxCalls = resolveMaxChainCalls();
   if (Number.isFinite(maxCalls) && nextCount > maxCalls && toolName !== 'invoke_subagent') {
-    return {
-      allowed: false,
-      exitCode: 2,
-      count: nextCount,
-      message: `VIOLATION (Rule 04 / Rule 05): Lead tool-chaining bound reached (${maxCalls} consecutive calls).`
-    };
+    return { allowed: false, exitCode: 2, count: nextCount, message: `VIOLATION (Rule 04 / Rule 05): Lead tool-chaining bound reached (${maxCalls} consecutive calls).` };
   }
   return { allowed: true, count: nextCount };
+}
+
+function updateTelemetry(convId, userInput, filePath, mutateFn) {
+  const state = readChainState(filePath);
+  const id = convId || 'default';
+  const prev = state.conversations[id] || {};
+  const nextTelem = mutateFn(resolveTelemetry(prev, userInput, false));
+  setConvEntry(state, id, prev.consecutiveCalls ?? 0, userInput, nextTelem);
+  writeChainState(state, filePath);
+  return nextTelem;
+}
+
+export function getTurnTelemetryState({ conversationId = 'default', lastUserInput = '', filePath = getChainStatePath() } = {}) {
+  const state = readChainState(filePath);
+  return resolveTelemetry(state.conversations[conversationId || 'default'] || {}, lastUserInput, false);
+}
+
+export function incrementTurnTelemetryCounter({ conversationId = 'default', lastUserInput = '', field, filePath = getChainStatePath() } = {}) {
+  return updateTelemetry(conversationId, lastUserInput, filePath, (t) => ({ ...t, [field]: (t[field] || 0) + 1 }));
+}
+
+export function markFallbackRendered({ conversationId = 'default', lastUserInput = '', filePath = getChainStatePath() } = {}) {
+  return updateTelemetry(conversationId, lastUserInput, filePath, (t) => ({ ...t, fallbackRendered: true }));
+}
+
+export function resetTurnTelemetry({ conversationId = '', lastUserInput = '', filePath = getChainStatePath() } = {}) {
+  if (conversationId) return updateTelemetry(conversationId, lastUserInput, filePath, () => resolveTelemetry({}, lastUserInput, true));
+  const state = readChainState(filePath);
+  for (const id of Object.keys(state.conversations)) {
+    state.conversations[id] = { ...state.conversations[id], ...resolveTelemetry({}, '', true), updatedAt: new Date().toISOString() };
+  }
+  writeChainState(state, filePath);
+  return resolveTelemetry({}, '', true);
 }

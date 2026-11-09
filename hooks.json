@@ -47,9 +47,19 @@
         "type": "command",
         "command": "node hooks/reset-tool-chain.mjs",
         "timeout": 10
+      },
+      {
+        "type": "command",
+        "command": "node hooks/quad-loop-guard.mjs --event pre-invocation",
+        "timeout": 10
       }
     ],
     "Stop": [
+      {
+        "type": "command",
+        "command": "node hooks/quad-loop-guard.mjs --event stop",
+        "timeout": 10
+      },
       {
         "type": "command",
         "command": "node hooks/reset-tool-chain.mjs",

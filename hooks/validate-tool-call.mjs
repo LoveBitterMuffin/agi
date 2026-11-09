@@ -3,6 +3,7 @@
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { recordToolCall } from './tool-chain-state.mjs';
+import { evaluatePreSubagent } from './quad-loop-guard.mjs';
 
 const BLOCK_RULES = [
   { id: 'unix-root-delete', pattern: /(?:^|[;&|]\s*)(?:sudo\s+)?rm\s+(?:-[A-Za-z]*r[A-Za-z]*f[A-Za-z]*|-[A-Za-z]*f[A-Za-z]*r[A-Za-z]*)\s+(?:--\s+)?\/(?:\*|\s|$)/i, message: 'recursive deletion of the filesystem root' },
@@ -58,23 +59,34 @@ export function evaluateCommand(command) {
   return { allowed: true, rule: null, reason: 'no destructive command pattern matched' };
 }
 
-async function main() {
-  let raw = '';
-  try {
-    raw = await readStdin();
-  } catch (error) {
-    console.error(`AGI hook warning: ${error.message}`);
-    return 0;
+function gateSubagent(toolName, payload) {
+  if (toolName !== 'invoke_subagent') return 0;
+  const gate = evaluatePreSubagent(payload);
+  if (!gate.allowed) {
+    process.stdout.write(JSON.stringify({ decision: 'deny', reason: gate.reason }));
+    console.error(gate.reason);
+    return 2;
   }
+  if (payload?.transcriptPath) {
+    process.stdout.write(JSON.stringify({ decision: 'allow' }));
+  }
+  return 0;
+}
 
+async function readPayload() {
+  const raw = await readStdin();
+  if (!raw || !raw.trim()) return {};
+  return JSON.parse(raw);
+}
+
+async function main() {
   let payload = {};
-  if (raw && raw.trim()) {
-    try {
-      payload = JSON.parse(raw);
-    } catch {
-      console.error('AGI hook warning: Antigravity sent invalid JSON; allowing call.');
-      return 0;
-    }
+  try {
+    payload = await readPayload();
+  } catch (error) {
+    const label = error instanceof SyntaxError ? 'Antigravity sent invalid JSON; allowing call.' : error.message;
+    console.error(`AGI hook warning: ${label}`);
+    return 0;
   }
 
   const command = extractCommand(payload);
@@ -86,13 +98,14 @@ async function main() {
     }
   }
 
-  const chainResult = handleToolChainBound(extractToolName(payload), payload);
+  const toolName = extractToolName(payload);
+  const chainResult = handleToolChainBound(toolName, payload);
   if (!chainResult.allowed) {
     console.error(chainResult.message);
     return chainResult.exitCode;
   }
 
-  return 0;
+  return gateSubagent(toolName, payload);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

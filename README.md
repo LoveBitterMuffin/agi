@@ -9,11 +9,11 @@
 [English](README.md) | [Русский](README.ru.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version: 1.0.0](https://img.shields.io/badge/version-1.0.0-6366f1.svg)](plugin.json)
+[![Version: 1.0.1](https://img.shields.io/badge/version-1.0.1-6366f1.svg)](plugin.json)
 [![Skills: 66](https://img.shields.io/badge/Skills-66-06b6d4.svg)](#66-skills)
 [![Agents: 24](https://img.shields.io/badge/Agents-24-8b5cf6.svg)](#24-sdlc-specialist-agents)
 [![Rules: 7](https://img.shields.io/badge/Rules-7-4f46e5.svg)](#7-core-rules-and-mcp-gateway)
-[![Lifecycle Hooks: 4](https://img.shields.io/badge/Lifecycle%20Hooks-4-22d3ee.svg)](#lifecycle-hooks-architecture)
+[![Lifecycle Hooks: 5](https://img.shields.io/badge/Lifecycle%20Hooks-5-22d3ee.svg)](#lifecycle-hooks-architecture)
 
 *Carpati 2-Layer Memory · Dynamic Inquiry Gates · Ponytail 7-Rung Restraint · Harness² Self-Healing CI/CD · UI/UX Swarm · 24 SDLC Specialists*
 
@@ -59,9 +59,9 @@ flowchart TB
     L4 -->|"Failure / Drift: --SelfHeal & Probe (max 2 retries)"| L2
 ```
 
-### Quad-Loop Telemetry & Adaptive Triage
+### Quad-Loop Telemetry & Adaptive Task Triage
 
-Before dispatching subagents or closing a milestone, the orchestrator surfaces a human-verifiable **Quad-Loop Execution Telemetry** card in chat:
+Before dispatching subagents or closing a milestone, the orchestrator surfaces a human-verifiable **Quad-Loop Execution Telemetry** card in chat (enforced at runtime in `v1.0.1` by the **Hybrid Quad-Loop Telemetry Guard** in [`hooks/quad-loop-guard.mjs`](hooks/quad-loop-guard.mjs)):
 
 ```markdown
 ### 🔄 Quad-Loop Execution Telemetry
@@ -89,14 +89,15 @@ AGI enforces runtime discipline at two levels: deterministic **Lifecycle Hooks**
 
 ### Lifecycle Hooks Architecture
 
-[`hooks.json`](hooks.json) registers **4 core lifecycle phases** (spanning `PreToolUse`, `PostToolUse`, `SessionStart`, and `PreInvocation`/`Stop`) backed by Node.js ESM hook handlers:
+[`hooks.json`](hooks.json) registers **5 lifecycle hook events** (`PreToolUse`, `PostToolUse`, `SessionStart`, `PreInvocation`, and `Stop`) backed by **5 Node.js ESM handlers**:
 
 | Hook Event | Matcher | Handler Script | Enforcement & Runtime Behavior |
 |:---|:---|:---|:---|
-| `PreToolUse` | `run_command`, `invoke_subagent` | [`hooks/validate-tool-call.mjs`](hooks/validate-tool-call.mjs) | Blocks **6 destructive command patterns** (`unix-root-delete`, `filesystem-format`, `raw-disk-overwrite`, `windows-drive-format`, `windows-root-delete`, `windows-cmd-root-delete`) with exit code `1`. Tracks per-conversation consecutive calls via [`hooks/tool-chain-state.mjs`](hooks/tool-chain-state.mjs); if `ANTIGRAVITY_MAX_CHAIN_CALLS` is finite and exceeded without delegating (`invoke_subagent`), halts with exit code `2`. |
+| `PreToolUse` | `run_command`, `invoke_subagent` | [`hooks/validate-tool-call.mjs`](hooks/validate-tool-call.mjs) | Blocks **6 destructive command patterns** (`unix-root-delete`, `filesystem-format`, `raw-disk-overwrite`, `windows-drive-format`, `windows-root-delete`, `windows-cmd-root-delete`) with exit code `1`. Tracks per-conversation consecutive calls via [`hooks/tool-chain-state.mjs`](hooks/tool-chain-state.mjs). For `invoke_subagent`, calls `evaluatePreSubagent()` in [`hooks/quad-loop-guard.mjs`](hooks/quad-loop-guard.mjs) to deny (`decision: "deny"`, exit `2`, up to 2 retries/turn) until the active turn transcript includes the Quad-Loop Telemetry card (failing open without a transcript). |
 | `PostToolUse` | `run_command` | [`hooks/harness-post-tool.mjs`](hooks/harness-post-tool.mjs) | Intercepts non-zero exit codes and tool errors, appends a structured record (500-char error slice, rolling cap of 50 entries) to [`memory/harness_incidents.json`](memory/harness_incidents.json), and injects `[Harness² Active Loop 4]` context to trigger root-cause learning. |
-| `SessionStart` | `—` | [`hooks/session-start.mjs`](hooks/session-start.mjs) | Resets the tool-chain counter and invokes `syncWorkspace()` ([`scripts/sync-workspace-core.mjs`](scripts/sync-workspace-core.mjs)) on detected project roots (`.agents`, `package.json`, `.git`, `AGENTS.md`, `pyproject.toml`, `Cargo.toml`) to strip duplicate UTF-8 BOMs and sync scripts, agents, and `AGENTS.md`. |
-| `PreInvocation` / `Stop` | `—` | [`hooks/reset-tool-chain.mjs`](hooks/reset-tool-chain.mjs) | Resets the per-conversation consecutive call counter automatically on `invocationNum === 0`, a new `lastUserInput`, or `terminationReason`. |
+| `SessionStart` | `—` | [`hooks/session-start.mjs`](hooks/session-start.mjs) | Resets the tool-chain counter, invokes `syncWorkspace()` ([`scripts/sync-workspace-core.mjs`](scripts/sync-workspace-core.mjs)) on detected project roots (`.agents`, `package.json`, `.git`, `AGENTS.md`, `pyproject.toml`, `Cargo.toml`) to strip duplicate UTF-8 BOMs and sync scripts/agents/`AGENTS.md`, and emits the official `injectSteps` `systemMessage` contract (`AGI v1.0.1 active`, `24 SDLC agents`, `66 skills loaded`). |
+| `PreInvocation` | `—` | [`hooks/reset-tool-chain.mjs`](hooks/reset-tool-chain.mjs), [`hooks/quad-loop-guard.mjs`](hooks/quad-loop-guard.mjs) (`--event pre-invocation`) | Resets consecutive call counters on `invocationNum === 0` or new `lastUserInput` while preserving active turn telemetry retries across `Stop` retries. If the telemetry card is missing from the `256 KB` transcript tail, injects live metrics (`chainCalls`, `incidents`, `stopRetries`, `subagentDenies`) via `injectSteps.ephemeralMessage` and, after a `Stop` retry, emits a single-shot `systemMessage.metadata.user_markdown` fallback card. |
+| `Stop` | `—` | [`hooks/quad-loop-guard.mjs`](hooks/quad-loop-guard.mjs) (`--event stop`), [`hooks/reset-tool-chain.mjs`](hooks/reset-tool-chain.mjs) | On `terminationReason === "NO_TOOL_CALL"` when work occurred (`>= 2` planner responses or `invoke_subagent`/`write_file`/`edit_file`/`run_command`) without a telemetry card, enforces **1 retry** (`decision: "continue"`). On terminal completion, resets both chain and turn telemetry state cleanly. |
 
 ### Harness² Propose-Probe-Compose & Verification Toolchain
 
@@ -119,7 +120,7 @@ Supporting scripts keep token consumption bounded and verification deterministic
 All commands below were executed directly inside the repository root:
 
 ```bash
-$ node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs
+$ node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs tests/quad-loop-telemetry.test.mjs
 TAP version 13
 # Subtest: plugin.json defines AGI branding, allowed keys, and valid SVG logo
 ok 1 - plugin.json defines AGI branding, allowed keys, and valid SVG logo
@@ -127,21 +128,31 @@ ok 1 - plugin.json defines AGI branding, allowed keys, and valid SVG logo
 ok 2 - hooks.json is valid JSON under "agi" and all referenced .mjs scripts exist
 # Subtest: repository export contains no Python bytecode artifacts and has clean incident log
 ok 3 - repository export contains no Python bytecode artifacts and has clean incident log
+# Subtest: AC-01: SessionStart emits official injectSteps contract for AGI v1.0.1
+ok 4 - AC-01: SessionStart emits official injectSteps contract for AGI v1.0.1
+# Subtest: AC-01: inspectTurnTranscript fails open and slices 256KB tail by latest USER_INPUT
+ok 5 - AC-01: inspectTurnTranscript fails open and slices 256KB tail by latest USER_INPUT
+# Subtest: AC-01: evaluatePreInvocation injects live metrics and single-shot user_markdown fallback
+ok 6 - AC-01: evaluatePreInvocation injects live metrics and single-shot user_markdown fallback
+# Subtest: AC-02: validate-tool-call denies invoke_subagent twice without card then allows, and allows when card exists
+ok 7 - AC-02: validate-tool-call denies invoke_subagent twice without card then allows, and allows when card exists
+# Subtest: AC-03: Stop enforces once on work without card, preserves counters across PreInvocation, and resets at terminal Stop
+ok 8 - AC-03: Stop enforces once on work without card, preserves counters across PreInvocation, and resets at terminal Stop
 # Subtest: extractToolName and extractCommand support Antigravity camelCase toolCall payloads
-ok 4 - extractToolName and extractCommand support Antigravity camelCase toolCall payloads
+ok 9 - extractToolName and extractCommand support Antigravity camelCase toolCall payloads
 # Subtest: unlimited consecutive calls are allowed and isolated per conversation
-ok 5 - unlimited consecutive calls are allowed and isolated per conversation
+ok 10 - unlimited consecutive calls are allowed and isolated per conversation
 # Subtest: counter resets automatically on new lastUserInput, invoke_subagent, and resetChainState
-ok 6 - counter resets automatically on new lastUserInput, invoke_subagent, and resetChainState
+ok 11 - counter resets automatically on new lastUserInput, invoke_subagent, and resetChainState
 # Subtest: destructive command block rules remain enforced
-ok 7 - destructive command block rules remain enforced
+ok 12 - destructive command block rules remain enforced
 # Subtest: reset-tool-chain.mjs CLI resets state on PreInvocation and Stop payloads
-ok 8 - reset-tool-chain.mjs CLI resets state on PreInvocation and Stop payloads
-1..8
-# tests 8
-# pass 8
+ok 13 - reset-tool-chain.mjs CLI resets state on PreInvocation and Stop payloads
+1..13
+# tests 13
+# pass 13
 # fail 0
-# duration_ms 165.4648
+# duration_ms 592.8492
 ```
 
 ```powershell
@@ -450,11 +461,11 @@ agy plugin install ./agi
 agy plugin validate ./agi --strict --json
 ```
 
-Run the native Node hook & manifest test suite to confirm runtime integrity:
+Run the native Node hook & manifest test suite (`13/13` passing across `tests/tool-chain-hooks.test.mjs`, `tests/agi-manifest.test.mjs`, and `tests/quad-loop-telemetry.test.mjs`) to confirm runtime integrity:
 
 ```bash
 cd ./agi
-node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs
+node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs tests/quad-loop-telemetry.test.mjs
 ```
 
 ### Method 3: Team Workspace Deployment

@@ -9,11 +9,11 @@
 [English](README.md) | [Русский](README.ru.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version: 1.0.0](https://img.shields.io/badge/version-1.0.0-6366f1.svg)](plugin.json)
+[![Version: 1.0.1](https://img.shields.io/badge/version-1.0.1-6366f1.svg)](plugin.json)
 [![Skills: 66](https://img.shields.io/badge/Skills-66-06b6d4.svg)](#66-навыков-skills)
 [![Agents: 24](https://img.shields.io/badge/Agents-24-8b5cf6.svg)](#24-специализированных-агента-sdlc)
 [![Rules: 7](https://img.shields.io/badge/Rules-7-4f46e5.svg)](#7-базовых-правил-и-mcp-шлюз)
-[![Lifecycle Hooks: 4](https://img.shields.io/badge/Lifecycle%20Hooks-4-22d3ee.svg)](#архитектура-жизненного-цикла-хуков)
+[![Lifecycle Hooks: 5](https://img.shields.io/badge/Lifecycle%20Hooks-5-22d3ee.svg)](#архитектура-жизненного-цикла-хуков)
 
 *Двухслойная память Карпати · Динамические гейты уточнения · 7 ступеней сдержанности Ponytail · Самовосстанавливающийся CI/CD Harness² · UI/UX-рой · 24 SDLC-специалиста*
 
@@ -59,9 +59,9 @@ flowchart TB
     L4 -->|"Сбой или дрейф: --SelfHeal и проба (макс. 2 повтора)"| L2
 ```
 
-### Телеметрия четырёх контуров и адаптивный триаж
+### Телеметрия четырёх контуров и адаптивный триаж задач
 
-Перед запуском субагентов или закрытием этапа оркестратор выводит в чат проверяемую карточку **Quad-Loop Execution Telemetry**:
+Перед запуском субагентов или закрытием этапа оркестратор выводит в чат проверяемую карточку **Quad-Loop Execution Telemetry** (в `v1.0.1` детерминированно контролируется гибридным защитником **Hybrid Quad-Loop Telemetry Guard** в [`hooks/quad-loop-guard.mjs`](hooks/quad-loop-guard.mjs)):
 
 ```markdown
 ### 🔄 Quad-Loop Execution Telemetry
@@ -89,14 +89,15 @@ AGI обеспечивает дисциплину исполнения на дв
 
 ### Архитектура жизненного цикла хуков
 
-Файл [`hooks.json`](hooks.json) подключает **4 ключевых этапа жизненного цикла** (`PreToolUse`, `PostToolUse`, `SessionStart` и `PreInvocation`/`Stop`) через обработчики на Node.js ESM:
+Файл [`hooks.json`](hooks.json) подключает **5 событий жизненного цикла** (`PreToolUse`, `PostToolUse`, `SessionStart`, `PreInvocation` и `Stop`) через **5 ESM-обработчиков** на Node.js:
 
 | Событие хука | Матчер | Скрипт-обработчик | Механизм защиты и поведения |
 |:---|:---|:---|:---|
-| `PreToolUse` | `run_command`, `invoke_subagent` | [`hooks/validate-tool-call.mjs`](hooks/validate-tool-call.mjs) | Блокирует **6 шаблонов деструктивных команд** (`unix-root-delete`, `filesystem-format`, `raw-disk-overwrite`, `windows-drive-format`, `windows-root-delete`, `windows-cmd-root-delete`) с кодом выхода `1`. Ведёт счётчик последовательных вызовов по беседам через [`hooks/tool-chain-state.mjs`](hooks/tool-chain-state.mjs); при заданном конечном `ANTIGRAVITY_MAX_CHAIN_CALLS` останавливает цепочку с кодом `2` до делегирования субагенту. |
+| `PreToolUse` | `run_command`, `invoke_subagent` | [`hooks/validate-tool-call.mjs`](hooks/validate-tool-call.mjs) | Блокирует **6 шаблонов деструктивных команд** (`unix-root-delete`, `filesystem-format`, `raw-disk-overwrite`, `windows-drive-format`, `windows-root-delete`, `windows-cmd-root-delete`) с кодом выхода `1`. Ведёт счётчик последовательных вызовов по беседам через [`hooks/tool-chain-state.mjs`](hooks/tool-chain-state.mjs). Для `invoke_subagent` вызывает `evaluatePreSubagent()` из [`hooks/quad-loop-guard.mjs`](hooks/quad-loop-guard.mjs) и отклоняет вызов (`decision: "deny"`, код `2`, до 2 попыток на ход), пока в транскрипте активного хода нет карточки Quad-Loop Telemetry (при отсутствии транскрипта пропускает открыто). |
 | `PostToolUse` | `run_command` | [`hooks/harness-post-tool.mjs`](hooks/harness-post-tool.mjs) | Перехватывает ненулевые коды возврата и ошибки, записывает инцидент (срез ошибки до 500 символов, буфер до 50 записей) в [`memory/harness_incidents.json`](memory/harness_incidents.json) и инжектирует контекст `[Harness² Active Loop 4]`. |
-| `SessionStart` | `—` | [`hooks/session-start.mjs`](hooks/session-start.mjs) | Сбрасывает счётчик цепочки вызовов и запускает `syncWorkspace()` ([`scripts/sync-workspace-core.mjs`](scripts/sync-workspace-core.mjs)) в корне проекта (`.agents`, `package.json`, `.git`, `AGENTS.md`, `pyproject.toml`, `Cargo.toml`), очищая дублирующиеся UTF-8 BOM и синхронизируя скрипты, агентов и `AGENTS.md`. |
-| `PreInvocation` / `Stop` | `—` | [`hooks/reset-tool-chain.mjs`](hooks/reset-tool-chain.mjs) | Автоматически обнуляет счётчик последовательных вызовов при `invocationNum === 0`, новом `lastUserInput` или событии `terminationReason`. |
+| `SessionStart` | `—` | [`hooks/session-start.mjs`](hooks/session-start.mjs) | Сбрасывает счётчик цепочки вызовов, запускает `syncWorkspace()` ([`scripts/sync-workspace-core.mjs`](scripts/sync-workspace-core.mjs)) в корне проекта (`.agents`, `package.json`, `.git`, `AGENTS.md`, `pyproject.toml`, `Cargo.toml`) для очистки дублирующихся UTF-8 BOM и синхронизации скриптов/агентов/`AGENTS.md`, а также выдаёт официальный контракт `injectSteps` с `systemMessage` (`AGI v1.0.1 active`, `24 SDLC agents`, `66 skills loaded`). |
+| `PreInvocation` | `—` | [`hooks/reset-tool-chain.mjs`](hooks/reset-tool-chain.mjs), [`hooks/quad-loop-guard.mjs`](hooks/quad-loop-guard.mjs) (`--event pre-invocation`) | Обнуляет счётчик цепочки вызовов при `invocationNum === 0` или новом `lastUserInput`, сохраняя счётчики телеметрии хода между повторами `Stop`. Если карточка телеметрии отсутствует в хвосте транскрипта (`256 KB`), инжектирует живые метрики (`chainCalls`, `incidents`, `stopRetries`, `subagentDenies`) через `injectSteps.ephemeralMessage`, а после повтора `Stop` однократно добавляет резервную карточку `systemMessage.metadata.user_markdown`. |
+| `Stop` | `—` | [`hooks/quad-loop-guard.mjs`](hooks/quad-loop-guard.mjs) (`--event stop`), [`hooks/reset-tool-chain.mjs`](hooks/reset-tool-chain.mjs) | При `terminationReason === "NO_TOOL_CALL"`, если выполнялась работа (`>= 2` ответов планировщика или вызов `invoke_subagent`/`write_file`/`edit_file`/`run_command`) без карточки телеметрии, принудительно требует **1 повтор** (`decision: "continue"`). На финальном завершении полностью сбрасывает счётчики цепочки и телеметрии хода. |
 
 ### Цикл Harness² Propose-Probe-Compose и инструменты верификации
 
@@ -114,12 +115,12 @@ AGI обеспечивает дисциплину исполнения на дв
 - **Триаж сложности и аллокатор TERA ([`scripts/triage-task.ps1`](scripts/triage-task.ps1), [`scripts/estimate-complexity.ps1`](scripts/estimate-complexity.ps1)):** Определяет архетип задачи (`T0`–`T3`), бюджет токенов и состав роя.
 - **Верификатор UI-контрастности и доступности ([`scripts/verify-ui.mjs`](scripts/verify-ui.mjs)):** Вычисляет коэффициент контрастности WCAG (`calculateContrast`) и проверяет разметку на соответствие экранам `375px (Mobile)` и `1440px (Desktop)`, наличие `alt`, запрет текста мельче 12px, видимые состояния фокуса, плавные переходы и запрет сырых эмодзи внутри `<button>`.
 
-### Живая демонстрация CLI — Harness, хуки, триаж и валидация манифеста
+### Живая демонстрация CLI — Harness, хуки, триаж задач и валидация манифеста
 
 Все приведённые ниже команды выполнены непосредственно в корне репозитория:
 
 ```bash
-$ node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs
+$ node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs tests/quad-loop-telemetry.test.mjs
 TAP version 13
 # Subtest: plugin.json defines AGI branding, allowed keys, and valid SVG logo
 ok 1 - plugin.json defines AGI branding, allowed keys, and valid SVG logo
@@ -127,22 +128,32 @@ ok 1 - plugin.json defines AGI branding, allowed keys, and valid SVG logo
 ok 2 - hooks.json is valid JSON under "agi" and all referenced .mjs scripts exist
 # Subtest: repository export contains no Python bytecode artifacts and has clean incident log
 ok 3 - repository export contains no Python bytecode artifacts and has clean incident log
+# Subtest: AC-01: SessionStart emits official injectSteps contract for AGI v1.0.1
+ok 4 - AC-01: SessionStart emits official injectSteps contract for AGI v1.0.1
+# Subtest: AC-01: inspectTurnTranscript fails open and slices 256KB tail by latest USER_INPUT
+ok 5 - AC-01: inspectTurnTranscript fails open and slices 256KB tail by latest USER_INPUT
+# Subtest: AC-01: evaluatePreInvocation injects live metrics and single-shot user_markdown fallback
+ok 6 - AC-01: evaluatePreInvocation injects live metrics and single-shot user_markdown fallback
+# Subtest: AC-02: validate-tool-call denies invoke_subagent twice without card then allows, and allows when card exists
+ok 7 - AC-02: validate-tool-call denies invoke_subagent twice without card then allows, and allows when card exists
+# Subtest: AC-03: Stop enforces once on work without card, preserves counters across PreInvocation, and resets at terminal Stop
+ok 8 - AC-03: Stop enforces once on work without card, preserves counters across PreInvocation, and resets at terminal Stop
 # Subtest: extractToolName and extractCommand support Antigravity camelCase toolCall payloads
-ok 4 - extractToolName and extractCommand support Antigravity camelCase toolCall payloads
+ok 9 - extractToolName and extractCommand support Antigravity camelCase toolCall payloads
 # Subtest: unlimited consecutive calls are allowed and isolated per conversation
-ok 5 - unlimited consecutive calls are allowed and isolated per conversation
+ok 10 - unlimited consecutive calls are allowed and isolated per conversation
 # Subtest: counter resets automatically on new lastUserInput, invoke_subagent, and resetChainState
-ok 6 - counter resets automatically on new lastUserInput, invoke_subagent, and resetChainState
+ok 11 - counter resets automatically on new lastUserInput, invoke_subagent, and resetChainState
 # Subtest: destructive command block rules remain enforced
-ok 7 - destructive command block rules remain enforced
+ok 12 - destructive command block rules remain enforced
 # Subtest: reset-tool-chain.mjs CLI resets state on PreInvocation and Stop payloads
-ok 8 - reset-tool-chain.mjs CLI resets state on PreInvocation and Stop payloads
-1..8
-# tests 8
+ok 13 - reset-tool-chain.mjs CLI resets state on PreInvocation and Stop payloads
+1..13
+# tests 13
 # suites 0
-# pass 8
+# pass 13
 # fail 0
-# duration_ms 165.4648
+# duration_ms 592.8492
 ```
 
 ```powershell
@@ -451,11 +462,11 @@ agy plugin install ./agi
 agy plugin validate ./agi --strict --json
 ```
 
-Запуск встроенных тестов хуков и манифеста для подтверждения целостности:
+Запуск встроенных тестов хуков и манифеста (`13/13` пройдено в `tests/tool-chain-hooks.test.mjs`, `tests/agi-manifest.test.mjs` и `tests/quad-loop-telemetry.test.mjs`) для подтверждения целостности:
 
 ```bash
 cd ./agi
-node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs
+node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs tests/quad-loop-telemetry.test.mjs
 ```
 
 ### Способ 3: Командное развёртывание в рабочем пространстве

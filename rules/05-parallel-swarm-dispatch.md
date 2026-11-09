@@ -106,3 +106,8 @@ Return a concise summary (max 15 lines):
    - Assert zero collision across touched files.
    - Run the unified 4-stage harness (`run-harness.ps1`) to verify integrated system coherence.
    - Commit the integrated state with a single atomic commit.
+
+### Quad-Loop Telemetry Pre-Flight Gate
+- Before dispatching any `invoke_subagent` call in the current turn, output `### 🔄 Quad-Loop Execution Telemetry` with `[Loop 1`..`[Loop 4` markers in chat.
+- `hooks/validate-tool-call.mjs` denies `invoke_subagent` (up to 2 retries/turn) until the current turn transcript contains the card.
+- Conclude multi-step or tool-executing turns with the updated card so the `Stop` hook cleanly closes the stage.
