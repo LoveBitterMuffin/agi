@@ -1,0 +1,142 @@
+﻿# sync-spec.ps1 - OpenSpec Delta-to-Main Spec Synchronizer & Vault Archiver
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$SpecFile,
+
+    [string]$TargetChapter = "",
+    [ValidateSet("PATCH", "MINOR", "MAJOR")]
+    [string]$BumpType = ""
+)
+
+$ErrorActionPreference = "Stop"
+
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "  OpenSpec Delta-to-Main Synchronizer     " -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan
+
+$repoRoot = (git rev-parse --show-toplevel 2>$null)
+if (-not $repoRoot) { $repoRoot = (Get-Location).Path }
+
+# 1. Resolve SpecFile
+$resolvedSpecPath = $SpecFile
+if (-not [System.IO.Path]::IsPathRooted($resolvedSpecPath)) {
+    $resolvedSpecPath = Join-Path $repoRoot $SpecFile
+}
+
+if (-not (Test-Path $resolvedSpecPath)) {
+    Write-Host "[FAIL] Spec file not found at: $resolvedSpecPath" -ForegroundColor Red
+    exit 1
+}
+
+$specContent = [System.IO.File]::ReadAllText($resolvedSpecPath, [System.Text.Encoding]::UTF8)
+$specFileName = Split-Path -Leaf $resolvedSpecPath
+
+# 2. Extract Metadata from Spec Header
+if ($specContent -match '(?m)^\*\*Target Chapter:\*\*\s*`?([^`\r\n]+)`?') {
+    if (-not $TargetChapter) { $TargetChapter = $matches[1].Trim() }
+}
+if ($specContent -match '(?m)^\*\*Target SemVer:\*\*\s*([A-Z]+)') {
+    if (-not $BumpType) { $BumpType = $matches[1].Trim() }
+}
+if ($specContent -match '(?m)^# Specification:\s*(.+)$') {
+    $featureTitle = $matches[1].Trim()
+} else {
+    $featureTitle = $specFileName
+}
+
+if (-not $TargetChapter) {
+    Write-Host "[FAIL] Target chapter not specified in spec header and not passed via -TargetChapter." -ForegroundColor Red
+    exit 1
+}
+if (-not $BumpType) { $BumpType = "PATCH" }
+
+$resolvedChapterPath = $TargetChapter
+if (-not [System.IO.Path]::IsPathRooted($resolvedChapterPath)) {
+    $resolvedChapterPath = Join-Path $repoRoot $TargetChapter
+}
+
+Write-Host "Spec:           $specFileName" -ForegroundColor White
+Write-Host "Target Chapter: $TargetChapter" -ForegroundColor White
+Write-Host "SemVer Bump:    $BumpType" -ForegroundColor White
+
+# 3. Extract OpenSpec Requirements (SHALL / MUST) & Scenarios (GIVEN/WHEN/THEN)
+$reqRegex = '(?ms)^### Requirement:\s*.*?(?=^### Requirement:|\n## [0-9]|\Z)'
+$reqMatches = [System.Text.RegularExpressions.Regex]::Matches($specContent, $reqRegex)
+$extractedRequirements = @()
+foreach ($m in $reqMatches) {
+    $trimmed = $m.Value.Trim()
+    if ($trimmed.Length -gt 0) {
+        $extractedRequirements += $trimmed
+    }
+}
+Write-Host "Requirements found in delta spec: $($extractedRequirements.Count)" -ForegroundColor Cyan
+
+if (-not (Test-Path $resolvedChapterPath)) {
+    Write-Host "[FAIL] Target chapter does not exist at: $resolvedChapterPath" -ForegroundColor Red
+    exit 1
+}
+
+if ($extractedRequirements.Count -eq 0) {
+    Write-Host "[FAIL] No requirements ('### Requirement:') found in $specFileName. Aborting sync." -ForegroundColor Red
+    exit 1
+}
+
+# 4. Archive Delta Spec to Vault
+$vaultDir = Join-Path $repoRoot "memory\raw\vault"
+if (-not (Test-Path $vaultDir)) { New-Item -ItemType Directory -Path $vaultDir -Force | Out-Null }
+
+# Convert spec filename to vault filename if not already
+$vaultFileName = $specFileName
+if ($vaultFileName.StartsWith("SPEC-")) {
+    $vaultFileName = "RAW-" + $vaultFileName
+}
+$targetVaultPath = Join-Path $vaultDir $vaultFileName
+
+# Move file to vault
+Move-Item -Path $resolvedSpecPath -Destination $targetVaultPath -Force
+Write-Host "[PASS] Delta spec archived to: $targetVaultPath" -ForegroundColor Green
+
+# Count lines of archived vault file for lossless pointer calculation
+$vaultLines = [System.IO.File]::ReadAllLines($targetVaultPath, [System.Text.Encoding]::UTF8)
+$vaultLineCount = $vaultLines.Count
+
+# 5. Synchronize into Main Wiki Chapter
+if (Test-Path $resolvedChapterPath) {
+    $chapterContent = [System.IO.File]::ReadAllText($resolvedChapterPath, [System.Text.Encoding]::UTF8)
+    
+    # Bump SemVer
+    if ($chapterContent -match '(?m)^version:\s*(\d+)\.(\d+)\.(\d+)') {
+        $maj = [int]$matches[1]
+        $min = [int]$matches[2]
+        $pat = [int]$matches[3]
+        if ($BumpType -eq "MAJOR") { $maj++; $min = 0; $pat = 0 }
+        elseif ($BumpType -eq "MINOR") { $min++; $pat = 0 }
+        else { $pat++ }
+        $newChapterVersion = "$maj.$min.$pat"
+        $chapterContent = [System.Text.RegularExpressions.Regex]::Replace($chapterContent, '(?m)^version:\s*.*$', "version: $newChapterVersion")
+    }
+
+    # Append synced requirements block
+    $syncSection = @"
+
+## Synced Requirements from $vaultFileName
+- **Archived Specification Pointer:** See `memory/raw/vault/$vaultFileName` lines 1-$vaultLineCount.
+
+$($extractedRequirements -join "`n`n")
+"@
+    $chapterContent += "`n$syncSection"
+    [System.IO.File]::WriteAllText($resolvedChapterPath, $chapterContent, [System.Text.Encoding]::UTF8)
+    Write-Host "[PASS] Main chapter $TargetChapter updated with requirements and bumped to v$newChapterVersion." -ForegroundColor Green
+} else {
+    Write-Host "[INFO] Target chapter $TargetChapter does not exist yet. It should be compiled as a new chapter." -ForegroundColor Yellow
+}
+
+# 6. Run Memory Audit Verification
+$auditScript = Join-Path $repoRoot ".agents\scripts\audit-memory.ps1"
+if (Test-Path $auditScript) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $auditScript
+}
+
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "  OpenSpec Sync & Archive Complete        " -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan

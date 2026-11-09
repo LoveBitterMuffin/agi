@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" fill="none">
+  <defs>
+    <linearGradient id="coreCyanTop" x1="128" y1="87" x2="92" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="coreIndigoLeft" x1="92" y1="128" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="coreVioletTop" x1="128" y1="87" x2="164" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="coreIndigoRight" x1="164" y1="128" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="coreBaseLeft" x1="92" y1="148" x2="128" y2="169" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="coreBaseRight" x1="128" y1="148" x2="164" y2="169" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="orbitCyan" x1="144.86" y1="44.55" x2="140.4" y2="214.51" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06B6D4"/>
+      <stop offset="55%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="orbitViolet" x1="191.84" y1="184.32" x2="46.88" y2="95.49" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="55%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="orbitIndigo" x1="47.3" y1="155.12" x2="196.72" y2="74" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="55%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="nodeCyan" x1="122" y1="32" x2="134" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#0891B2"/>
+    </linearGradient>
+    <linearGradient id="nodeViolet" x1="200" y1="167" x2="212" y2="179" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="nodeIndigo" x1="44" y1="167" x2="56" y2="179" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+  </defs>
+  <g stroke="#6366F1" stroke-width="6" stroke-linecap="round" stroke-opacity="0.45">
+    <path d="M 115.6 214.51 A 90 45 -90 0 1 111.14 44.55"/>
+    <path d="M 59.28 74 A 90 45 30 0 1 208.7 155.12"/>
+    <path d="M 209.12 95.49 A 90 45 150 0 1 64.16 184.32"/>
+  </g>
+  <g>
+    <path d="M 128 87 L 92 108 L 128 102 Z" fill="url(#coreCyanTop)"/>
+    <path d="M 92 108 L 92 118 L 128 109 L 128 102 Z" fill="url(#coreIndigoLeft)"/>
+    <path d="M 128 87 L 164 108 L 128 102 Z" fill="url(#coreVioletTop)"/>
+    <path d="M 164 108 L 164 118 L 128 109 L 128 102 Z" fill="url(#coreIndigoRight)"/>
+    <path d="M 128 117 L 117 128 L 128 139 Z" fill="#22D3EE"/>
+    <path d="M 128 117 L 139 128 L 128 139 Z" fill="#8B5CF6"/>
+    <path d="M 92 138 L 92 148 L 128 154 L 128 147 Z" fill="url(#coreIndigoLeft)"/>
+    <path d="M 92 148 L 128 169 L 128 154 Z" fill="url(#coreBaseLeft)"/>
+    <path d="M 164 138 L 164 148 L 128 154 L 128 147 Z" fill="url(#coreIndigoRight)"/>
+    <path d="M 164 148 L 128 169 L 128 154 Z" fill="url(#coreBaseRight)"/>
+  </g>
+  <g stroke-width="7" stroke-linecap="round">
+    <path d="M 144.86 44.55 A 90 45 -90 0 1 140.4 214.51" stroke="url(#orbitCyan)"/>
+    <path d="M 191.84 184.32 A 90 45 30 0 1 46.88 95.49" stroke="url(#orbitViolet)"/>
+    <path d="M 47.3 155.12 A 90 45 150 0 1 196.72 74" stroke="url(#orbitIndigo)"/>
+  </g>
+  <g>
+    <circle cx="128" cy="38" r="8" fill="url(#nodeCyan)"/>
+    <circle cx="205.94" cy="173" r="8" fill="url(#nodeViolet)"/>
+    <circle cx="50.06" cy="173" r="8" fill="url(#nodeIndigo)"/>
+  </g>
+</svg>

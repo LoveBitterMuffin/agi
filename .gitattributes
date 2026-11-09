@@ -1,0 +1,21 @@
+# Normalize text files to LF across platforms
+* text=auto eol=lf
+
+# Explicit LF enforcement for scripts and configuration
+*.ps1 text eol=lf
+*.sh text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.svg text eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary

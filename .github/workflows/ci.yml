@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-verify:
+    name: Linux Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify zero Python bytecode artifacts
+        run: |
+          artifacts=$(find . -path './.git' -prune -o \( -name '__pycache__' -o -name '*.pyc' \) -print)
+          if [ -n "$artifacts" ]; then
+            echo "Found forbidden Python bytecode artifacts:"
+            echo "$artifacts"
+            exit 1
+          fi
+
+      - name: Run Node.js test suite
+        run: node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs
+
+      - name: Run Ponytail restraint hook audit
+        run: node hooks/audit-restraint.mjs hooks
+
+      - name: Verify UI audit script
+        run: node scripts/verify-ui.mjs
+
+      - name: Run Python session manager status
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python scripts/session_manager.py status .
+
+  windows-harness:
+    name: Windows Harness
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Node.js test suite
+        run: node --test tests/tool-chain-hooks.test.mjs tests/agi-manifest.test.mjs
+
+      - name: Audit code standards
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/audit-code.ps1
+
+      - name: Audit Ponytail restraint (strict)
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/audit-restraint.ps1 -Strict
+
+      - name: Verify task triage CLI
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/triage-task.ps1 -Task "CI" -Json
+
+      - name: Verify complexity estimator CLI
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/estimate-complexity.ps1 -Description "CI" -JsonOutput
