@@ -91,6 +91,9 @@ test('repository export contains no Python bytecode artifacts and has clean inci
   const pyArtifacts = findPythonArtifacts(ROOT);
   assert.deepEqual(pyArtifacts, []);
 
-  const incidents = readJson(path.join('memory', 'harness_incidents.json'));
+  const incidentsRelPath = path.join('memory', 'harness_incidents.json');
+  const incidents = fs.existsSync(path.join(ROOT, incidentsRelPath))
+    ? readJson(incidentsRelPath)
+    : [];
   assert.deepEqual(incidents, []);
 });

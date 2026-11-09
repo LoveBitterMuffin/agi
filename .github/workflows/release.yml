@@ -47,6 +47,7 @@ jobs:
           rsync -a \
             --exclude='/.git' \
             --exclude='/.github' \
+            --exclude='/dist' \
             --exclude='/scratch' \
             --exclude='/memory/harness_incidents.json' \
             --exclude='__pycache__' \
