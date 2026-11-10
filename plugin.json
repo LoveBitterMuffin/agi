@@ -1,0 +1,21 @@
+{
+  "name": "agi",
+  "displayName": "AGI",
+  "version": "1.5.0",
+  "description": "Artificial General Intelligence engineering plugin for Antigravity: Carpati 2-Layer Memory, Dynamic Inquiry Gates, Ponytail 7-Rung Restraint, Harness² Self-Healing CI/CD, UI/UX Swarm, and 24 SDLC Specialists.",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "LoveBitterMuffin",
+    "url": "https://github.com/LoveBitterMuffin"
+  },
+  "homepage": "https://github.com/LoveBitterMuffin/agi",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LoveBitterMuffin/agi.git"
+  },
+  "suggestedPrompts": [
+    "/design Design a high-conversion modern SaaS pricing page with tier toggles and dark mode",
+    "/wiki-brief Analyze repository architecture and extract working context for active sprint",
+    "Plan and architect a scalable microservices backend with security auditing and automated tests"
+  ]
+}

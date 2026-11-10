@@ -1,0 +1,116 @@
+---
+trigger: always_on
+description: Parallel Swarm Fan-Out / Fan-In Protocol for Disjoint Multi-Agent Task Decomposition.
+---
+
+# 05: Parallel Swarm Fan-Out & Disjoint Subagent Dispatch Protocol
+
+## 1. Core Architectural Principle
+*"Lead is an orchestrator, not a laborer. When facing multiple independent domains, dispatch in parallel."*
+
+Monolithic single-thread execution across multiple subsystems causes catastrophic context saturation (200k+ token bloat), serialization latency, and uncontained failure cascades (as evidenced in `RAW-2026-010`).
+
+When a task involves $\ge 2$ independent subsystems, test suites, or domain slices, the orchestrator MUST partition the workload and dispatch multiple subagents of the same or complementary types concurrently.
+
+---
+
+## 2. Execution Topology: Swarm Fan-Out vs Staged Pipeline
+
+The orchestrator must analyze module dependencies before selecting the dispatch topology:
+
+### A. Mode A: Independent Swarm Fan-Out (Concurrent Batching)
+- **Applicability:** Applied strictly to disjoint, independent subsystems (e.g. Landing UI + Platform UI + Documentation + Security Audit).
+- **Single-Turn Concurrency:** The orchestrator MUST dispatch all parallel subagents in a **SINGLE response turn** by making multiple `invoke_subagent` calls simultaneously.
+  - *FORBIDDEN:* Invoking Subagent 1, waiting a turn, invoking Subagent 2, waiting a turn.
+  - *REQUIRED:* Batching `[invoke_subagent(WorkerA), invoke_subagent(WorkerB), invoke_subagent(WorkerC)]` in turn 1.
+
+### B. Mode B: Staged Dependency Pipeline (Sequential Staging)
+- **Applicability:** Applied to tasks where modules exhibit producer-consumer relationships (e.g. Stage 1: Data Contracts, Models, Security Primitives ──► Stage 2: Business Domain Services ──► Stage 3: End-to-End QA Testing).
+- **Staged Execution Mandate:** The orchestrator MUST stage execution sequentially:
+  1. Dispatch Stage 1 subagent(s).
+  2. Halt the lead thread and await reactive wakeup upon deliverable completion (never poll).
+  3. Dispatch Stage 2 subagent(s) supplied with concrete imports, contracts, and artifact paths from Stage 1.
+  4. Dispatch Stage 3 subagent(s) for integration and end-to-end verification.
+- **Strict Prohibition:** Never dispatch downstream consumer workers simultaneously with unbuilt upstream producers in the same workspace. Doing so causes busy-wait polling, missing dependency errors, and file write collisions.
+
+### C. Workspace Isolation Invariant
+- Mutating subagents MUST use `Workspace: "branch"` or mock interface isolation to eliminate state contamination and lock contention (`WinError 32`).
+
+### D. Runtime Mechanics & Governance
+1. **Runtime Type Resolution & Fast Dispatch:**
+   In the Antigravity runtime:
+   - Use `TypeName: "self"` for workers requiring code editing or command execution; differentiate their scope via the `Role` parameter (e.g. `Role: "Landing Specialist"`).
+   - Use `TypeName: "research"` for read-only exploration and documentation research.
+   - Alternatively, register custom types via `define_subagent` before dispatch.
+2. **Lead Orchestrator Labor Ban:**
+   The Lead Orchestrator is strictly forbidden from directly creating or modifying application code files (across auto-detected source roots: `src/**`, `handwriting_system/src/**`, `app/**`, `lib/**`) or executing multi-minute test suites in the main thread. Implementation and testing MUST be executed by subagents.
+3. **Greedy Execution Defense (Flash Bias):**
+   Models of the Flash family have a strong bias toward immediate single-threaded tool execution. If a task touches $\ge 2$ files or requires tests, the orchestrator MUST NOT enter an un-delegated loop of tool calls. If 5 sequential tool calls occur in the lead thread without subagent dispatch, the orchestrator MUST immediately halt and partition the workload into parallel or sequential subagents.
+
+
+---
+
+## 3. Disjoint Partitioning & Resource Boundaries
+
+To prevent race conditions, file lock collisions (`WinError 32`), and Git merge conflicts, the orchestrator MUST enforce strict **Domain Sharding** across auto-detected project source roots (illustrative layout below):
+
+```
+Subsystem Alpha (<root>/alpha/**)  ──► Worker 1 (Role: Subsystem Alpha Specialist)
+Subsystem Beta  (<root>/beta/**)   ──► Worker 2 (Role: Subsystem Beta Specialist)
+Subsystem Gamma (tests/**)         ──► Worker 3 (Role: QA & Security Specialist)
+```
+
+### Boundary Invariants:
+1. **Zero Path Overlap:** No two parallel agents may be granted write access to overlapping files or directories.
+2. **Read Clamping:** Each subagent prompt must specify exact directory paths and explicitly enforce the ban on reading files >250 lines in full (`00-reading-protocol.md`).
+3. **Workspace Isolation:**
+   - **Read-Only / Diagnostics:** Use `inherit` or `share` mode with disjoint path directives.
+   - **Mutating Code / Tests:** When workers perform complex code edits that require independent verification, specify `Workspace: "branch"`.
+
+---
+
+## 4. Standardized 4-Section Dispatch Template
+
+Every parallel worker prompt generated by the orchestrator (or via `generate-prompt.ps1`) MUST contain:
+
+```markdown
+### 1. Role & Objective
+[Precise worker title and domain scope, e.g. "Specialist: Subsystem X"]
+
+### 2. Resource Boundaries
+- Allowed Paths: [Strict list of files/directories]
+- Prohibited Paths: [All other subsystems]
+- Line Read Limit: Range reads only (<250 lines)
+
+### 3. Action Checklist
+1. Inspect domain topology using symbol outline / AST map.
+2. Execute tasks adhering to Rule 04 (<=150 lines, no slop).
+3. Verify changes locally using shielded execution (run-shielded.ps1).
+
+### 4. Expected Deliverable
+Return a concise summary (max 15 lines):
+- Status: [SUCCESS / BLOCKED]
+- Files Modified / Created: [List]
+- Verification Proof: [Test command exit code & duration]
+```
+
+---
+
+## 5. Reactive Fan-In & Synthesis (Zero Polling)
+
+1. **Event-Driven Wakeup:**
+   After issuing the batch dispatch, the orchestrator MUST NOT poll subagents or sleep in loops. The Antigravity messaging system automatically resumes execution when subagent deliverables arrive.
+2. **Synthesis Checklist:**
+   Upon receiving all subagent messages:
+   - Verify that all worker deliverables reported `SUCCESS`.
+   - Assert zero collision across touched files.
+   - Run the unified 4-stage harness (`run-harness.ps1`) to verify integrated system coherence.
+   - Commit the integrated state with a single atomic commit.
+
+### Quad-Loop Telemetry, Memory Gate & Gate 0–3 Pre-Flight
+- Before dispatching any `invoke_subagent` call in the current turn:
+  1. Satisfy **Carpati Memory Gate** (`memoryRead || memoryBriefInjected`) and **Gate 0** (`ask_question` passed).
+  2. Mutating/coding subagents also require **Gate 1** (`SPEC-*.md` approved); read-only `research`/scout/audit subagents may run after Gate 0.
+  3. Output `### 🔄 Quad-Loop Execution Telemetry` with `[Loop 1`..`[Loop 4` markers in chat.
+- `hooks/validate-tool-call.mjs` denies `invoke_subagent` (up to 2 retries/turn) until the current turn transcript contains the card; active subagents are isolated from Lead `chainCalls` and Lead gates while retaining Memory Gate and destructive-command protection.
+- Conclude multi-step or tool-executing turns with the updated card (and Gate 3 `AC-*` table + `audit-memory.ps1` when Lead mutated code) so the `Stop` hook cleanly closes the stage.

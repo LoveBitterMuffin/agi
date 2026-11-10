@@ -1,0 +1,91 @@
+{
+  "agi": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          { "type": "command", "command": "node hooks/validate-tool-call.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "invoke_subagent",
+        "hooks": [
+          { "type": "command", "command": "node hooks/validate-tool-call.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "write_file",
+        "hooks": [
+          { "type": "command", "command": "node hooks/validate-tool-call.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "edit_file",
+        "hooks": [
+          { "type": "command", "command": "node hooks/validate-tool-call.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "ask_question",
+        "hooks": [
+          { "type": "command", "command": "node hooks/validate-tool-call.mjs", "timeout": 10 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          { "type": "command", "command": "node hooks/harness-post-tool.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "read_file",
+        "hooks": [
+          { "type": "command", "command": "node hooks/harness-post-tool.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "write_file",
+        "hooks": [
+          { "type": "command", "command": "node hooks/harness-post-tool.mjs", "timeout": 10 },
+          { "type": "command", "command": "node hooks/audit-restraint.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "edit_file",
+        "hooks": [
+          { "type": "command", "command": "node hooks/harness-post-tool.mjs", "timeout": 10 },
+          { "type": "command", "command": "node hooks/audit-restraint.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "invoke_subagent",
+        "hooks": [
+          { "type": "command", "command": "node hooks/harness-post-tool.mjs", "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "ask_question",
+        "hooks": [
+          { "type": "command", "command": "node hooks/harness-post-tool.mjs", "timeout": 10 }
+        ]
+      }
+    ],
+    "SessionStart": [
+      { "type": "command", "command": "node hooks/session-start.mjs", "timeout": 10 }
+    ],
+    "PreInvocation": [
+      { "type": "command", "command": "node hooks/reset-tool-chain.mjs", "timeout": 10 },
+      { "type": "command", "command": "node hooks/quad-loop-guard.mjs --event pre-invocation", "timeout": 10 }
+    ],
+    "PostInvocation": [
+      { "type": "command", "command": "node hooks/quad-loop-guard.mjs --event post-invocation", "timeout": 10 }
+    ],
+    "Stop": [
+      { "type": "command", "command": "node hooks/quad-loop-guard.mjs --event stop", "timeout": 10 },
+      { "type": "command", "command": "node hooks/reset-tool-chain.mjs", "timeout": 10 }
+    ]
+  }
+}
