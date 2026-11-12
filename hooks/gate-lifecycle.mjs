@@ -9,7 +9,7 @@ const CODE_EXT_RE = /\.(?:mjs|js|cjs|ts|tsx|jsx|py|ps1|vue|go|rs|java|cs|cpp|c|h
 const CODE_DIR_RE = /(?:^|\/)(?:src|scripts|tests|hooks|harness|handwriting_system|app|lib)(?:\/|$)/i;
 const READONLY_ROLE_RE = /\b(?:scout|auditor|explorer|research|audit|reviewer|code-reviewer|test-runner)\b/i;
 const APPROVAL_RE = /(?:(?<!\p{L})|\b)(?:proceed|approved?|confirm|yes|go ahead|ok|да|подтверждаю|утверждаю|продолжай)(?:(?!\p{L})|\b)/iu;
-export const NEGATION_RE = /(?:(?<!\p{L})|\b)(?:не|нет|отмена|стоп|отклонить|отклонено|отказываюсь|don'?t|not|wait|stop|reject)(?:(?!\p{L})|\b)/iu;
+export const NEGATION_RE = /(?:(?<!\p{L})|\b)(?:(?<!больше\s+)не(?!\s+беспокой)|нет|отмена|стоп|отклонить|отклонено|отказываюсь|don'?t|not|wait|stop|reject)(?:(?!\p{L})|\b)/iu;
 
 export function getToolArgs(payload = {}) {
   return payload?.toolCall?.args ?? payload?.tool_args ?? payload?.toolArgs ?? payload?.arguments ?? {};
